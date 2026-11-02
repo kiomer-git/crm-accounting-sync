@@ -69,7 +69,7 @@ flowchart LR
 
 | File | Responsibility |
 | --- | --- |
-| `main.py` | Mock CRM, two seed customers, and billing email editing |
+| `main.py` | Mock CRM, two seed customers, customer creation, and billing email editing |
 | `accounting.py` | Persistent mock accounting API, version checks, and failure injection |
 | `sync.py` | Field translation, reconciliation, retries, and per-customer results |
 | `sync_state.py` | Persistent CRM-to-accounting mapping and accepted accounting version |
@@ -101,6 +101,17 @@ Use the API documentation's **Try it out** and **Execute** buttons. Start from a
 ### Create and repeat
 
 Run `python sync.py` twice. There should still be only two accounting customers with the same IDs.
+
+To add another customer, use the CRM's `POST /customers` endpoint:
+
+```json
+{
+  "company_name": "Bluebird Events",
+  "billing_email": "billing@bluebird.example"
+}
+```
+
+Execute it once: the CRM generates a new ID and returns HTTP 201. Run `python sync.py` to create the corresponding accounting customer. Repeat the sync to confirm no duplicate is created. Each separate CRM POST creates a new source customer, even if the name and email match; source creation itself is not idempotent. New CRM customers, like CRM edits, are lost when the mock CRM restarts. Their accounting copies remain saved.
 
 ### CRM update
 
@@ -156,7 +167,7 @@ Restart both servers and run the sync. Remove both databases together: retaining
 python -m unittest discover -s tests -v
 ```
 
-The 12 tests cover duplicate prevention, conflicting creates, distinct CRM IDs, persistence across database connections, deterministic failure injection, retry exhaustion and continuation, backoff, network timeouts, legitimate updates, independent accounting edits, lost update responses after commit, and stale-version protection.
+The 16 tests cover CRM creation and required fields, generated IDs, copying a newly added customer without duplicates, conflicting creates, distinct CRM IDs, persistence across database connections, deterministic failure injection, retry exhaustion and continuation, backoff, network timeouts, legitimate updates, independent accounting edits, lost update responses after commit, and stale-version protection.
 
 Tests use temporary databases and simulated HTTP transports; they do not modify the running demo's customers. They exercise the application logic without real network sockets. The manual walkthrough additionally checks the running HTTP servers.
 

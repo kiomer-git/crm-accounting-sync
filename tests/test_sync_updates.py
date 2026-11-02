@@ -10,6 +10,7 @@ from fastapi.testclient import TestClient
 import httpx
 
 import accounting
+import main
 import sync
 
 
@@ -57,6 +58,23 @@ class SyncUpdateTests(unittest.TestCase):
         self.assertEqual(record["version"], 2)
         self.assertIn("Already exists", self.run_sync()[1])
         self.assertEqual(self.accounting.get("/customers").json()[0]["version"], 2)
+
+    def test_new_crm_customer_is_copied_once_after_an_initial_sync(self):
+        self.assertEqual(self.run_sync()[0], 0)
+        with patch("main.customers", self.source), TestClient(main.app) as crm:
+            response = crm.post("/customers", json={
+                "company_name": "Bluebird Events", "billing_email": "billing@bluebird.example",
+            })
+            self.assertEqual(response.status_code, 201)
+            created = response.json()
+            self.assertEqual(self.run_sync()[0], 0)
+            self.assertEqual(self.run_sync()[0], 0)
+        records = self.accounting.get("/customers").json()
+        copies = [record for record in records if record["crm_id"] == created["id"]]
+        self.assertEqual(len(records), 2)
+        self.assertEqual(len(copies), 1)
+        self.assertEqual(copies[0]["display_name"], "Bluebird Events")
+        self.assertEqual(copies[0]["invoice_email"], "billing@bluebird.example")
 
     def test_independent_accounting_change_is_preserved(self):
         self.run_sync()

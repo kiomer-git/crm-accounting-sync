@@ -1,10 +1,12 @@
+from uuid import uuid4
+
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 
 
 app = FastAPI(title="Mock CRM")
 
-# Temporary example data. We'll add persistent storage in a later step.
+# Demo storage: new customers and edits reset when the CRM restarts.
 customers = [
     {
         "id": "crm-001",
@@ -27,6 +29,18 @@ def health():
 @app.get("/customers")
 def list_customers():
     return customers
+
+
+class NewCustomer(BaseModel):
+    company_name: str = Field(min_length=1)
+    billing_email: str = Field(min_length=1)
+
+
+@app.post("/customers", status_code=201)
+def create_customer(customer: NewCustomer):
+    record = {"id": f"crm-{uuid4()}", **customer.model_dump()}
+    customers.append(record)
+    return record
 
 
 class BillingUpdate(BaseModel):
